@@ -11,7 +11,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     
-   - name: Create ZIP deployment package
+    - name: Create ZIP deployment package
       working-directory: backend
       run: zip -r deploy_package.zip ./
 
