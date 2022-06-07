@@ -21,7 +21,7 @@ jobs:
     
     - name: Assets pipeline
       working-directory: backend
-      run: rake assets:precompile
+      run: bundle exec rake assets:precompile
     
     - name: Deploy to Server
       uses: easingthemes/ssh-deploy@main
