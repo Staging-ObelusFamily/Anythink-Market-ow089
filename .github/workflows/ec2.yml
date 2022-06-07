@@ -1,6 +1,7 @@
-name: Node CI
+name: deploy-to-eb
 
 on: [push]
+
 
 jobs:
   build:
@@ -8,27 +9,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     
-    - uses: ruby/setup-ruby@v1
+   - name: Create ZIP deployment package
+      working-directory: backend
+      run: zip -r deploy_package.zip ./
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
       with:
-        working-directory: backend
-        bundler-cache: true
-    
-    - name: Install bunler dependencies
-      working-directory: backend
-      run: BUNDLE_WITHOUT='development:test' BUNDLE_PATH=vendor/bundle BUNDLE_BIN=vendor/bundle/bin BUNDLE_DEPLOYMENT=1 bundle install -j4
-    
-    - name: Assets pipeline
-      working-directory: backend
-      run: bundle exec rake assets:precompile
-    
-    - name: Deploy to Server
-      uses: easingthemes/ssh-deploy@main
-      env:
-          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
-          ARGS: "-rltgoDzvO --delete"
-          SOURCE: "backend/"
-          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
-          REMOTE_USER: ${{ secrets.REMOTE_USER }}
-          TARGET: ${{ secrets.REMOTE_TARGET }}
+        aws-access-key-id: ${{ secrets.ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.SECRET_ACCESS_KEY }}
+        aws-region: "us-east-1"
+
+    - name: Upload package to S3 bucket
+      run: aws s3 cp deploy_package.zip s3://Anythink-Market-ow089/
+
+    - name: Create new ElasticBeanstalk Application Version
+      run: |
+        aws elasticbeanstalk create-application-version \
+        --application-name Anythink-Market-ow089-api \
+        --source-bundle S3Bucket="Anythink-Market-ow089",S3Key="deploy_package.zip" \
+        --version-label "ver-${{ github.sha }}" \
+        --description "commit-sha-${{ github.sha }}"
+
+    - name: Deploy new ElasticBeanstalk Application Version
+      run: aws elasticbeanstalk update-environment --environment-name Anythink-Market-ow089-api-env-1 --version-label "ver-${{ github.sha }}"
