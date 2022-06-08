@@ -11,7 +11,7 @@ jobs:
     - uses: actions/checkout@v2
     
     - name: Create ZIP deployment package
-      run: zip -r deploy_package.zip ./backend
+      run: zip -r deploy_package.zip ./backend/*
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
@@ -32,4 +32,4 @@ jobs:
         --description "commit-sha-${{ github.sha }}"
 
     - name: Deploy new ElasticBeanstalk Application Version
-      run: aws elasticbeanstalk update-environment --environment-name Anythinkmarketow089api-env --version-label "ver-${{ github.sha }}"
+      run: aws elasticbeanstalk update-environment --environment-name production --version-label "ver-${{ github.sha }}"
