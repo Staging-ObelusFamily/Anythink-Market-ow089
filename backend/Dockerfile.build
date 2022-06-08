@@ -1,0 +1,12 @@
+FROM ruby:2.7.5
+
+RUN apt-get update -qq && apt-get install -y build-essential nodejs
+
+ADD . /app
+WORKDIR /app
+RUN bundle install
+
+EXPOSE 3000
+RUN rm -f /tmp/server.pid 
+
+CMD ["rails", "server", "-b", "0.0.0.0", "--pid", "/tmp/server.pid"]
