@@ -2,6 +2,13 @@ name: Deploy to ECR
 
 on: [push]
 
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: anythink-market
+  ECS_SERVICE: rails
+  ECS_CLUSTER: anythink-market-ow089
+  CONTAINER_NAME: application
+
 jobs:
   
   build:
@@ -20,81 +27,40 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.SECRET_ACCESS_KEY }}
-        aws-region: "us-east-1"
+        aws-region: ${{ env.AWS_REGION }}
 
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
-#     - name: Build, tag, and push image to Amazon ECR
-#       working-directory: backend
-#       env:
-#         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-#         ECR_REPOSITORY: anythink-market-ow089
-#         IMAGE_TAG: rails-api
-#       run: |
-#         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f Dockerfile.build .
-#         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-
-    - name: Create ZIP deployment package
+    - name: Build, tag, and push image to Amazon ECR
       working-directory: backend
-      run: zip -r deploy_package.zip .
-        
-    - name: Upload package to S3 bucket
-      run: aws s3 cp backend/deploy_package.zip s3://anythink-market/
-
-    - name: Create new ElasticBeanstalk Application Version
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: rails-api
       run: |
-        aws elasticbeanstalk create-application-version \
-        --application-name docker \
-        --source-bundle S3Bucket="anythink-market",S3Key="deploy_package.zip" \
-        --version-label "ver-${{ github.sha }}" \
-        --description "commit-sha-${{ github.sha }}"
-        
-    - name: Deploy new ElasticBeanstalk Application Version
-      run: aws elasticbeanstalk update-environment --environment-name Docker-env --version-label "ver-${{ github.sha }}"
-        
-        
-        
-        
-#     - name: Generate Deploy File
-#       env:
-#         IMAGE_NAME: ${{ steps.build-image.outputs.image }}
-#         ZIP_FILE: v${{ steps.get-version.outputs.app-version }}
-#       run: |
-#         cat <<EOT >> Dockerrun.aws.json
-#           {
-#             "AWSEBDockerrunVersion": "1",
-#             "Image": {
-#               "Name": $IMAGE_NAME
-#             },
-#             "Ports": [
-#               {
-#                 "ContainerPort": 3000
-#               }
-#             ]
-#           }
-#           EOT
-#         zip -r $ZIP_FILE.zip Dockerrun.aws.json
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f Dockerfile.build .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
-#     - name: Deploy File
-#       env:
-#         ZIP_FILE: v${{ steps.get-version.outputs.app-version }}.zip
-#         APP_VERSION: v${{ steps.get-version.outputs.app-version }}
-#       run: |
-#         aws s3 cp $ZIP_FILE s3://elasticbeanstalk-vennly-api-versions
+        
+    - name: Download task definition
+      run: |
+        aws ecs describe-task-definition --task-definition rails:1 \
+        --query taskDefinition > task-definition.json
+        
+    - name: Fill in the new image ID in the Amazon ECS task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        container-name: ${{ env.CONTAINER_NAME }}
+        image: ${{ steps.build-image.outputs.image }}
 
-#         aws elasticbeanstalk create-application-version --application-name vennly-api \
-#           --version-label $APP_VERSION \
-#           --source-bundle S3Bucket=elasticbeanstalk-vennly-api-versions,S3Key=$ZIP_FILE \
-#           --description "${{ github.event.head_commit.message }}"
-
-#         aws elasticbeanstalk update-environment --application-name vennly-api \
-#           --environment-name vennly-api-${{ steps.get-branch.outputs.branch-name }} \
-#           --solution-stack-name "64bit Amazon Linux 2 v3.1.0 running Docker" \
-#           --version-label $APP_VERSION
-
-#     - name: Logout of Amazon ECR
-#       if: always()
-#       run: docker logout ${{ steps.login-ecr.outputs.registry }}
+    - name: Deploy Amazon ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: ${{ secrets.ECS_SERVICE }}
+        cluster: ${{ secrets.ECS_CLUSTER }}
+        wait-for-service-stability: true
