@@ -7,7 +7,7 @@ env:
   ECR_REPOSITORY: anythink-market
   ECS_SERVICE: rails
   ECS_CLUSTER: anythink-market-ow089
-  CONTAINER_NAME: ReplaceMe
+  CONTAINER_NAME: App
 
 jobs:
   
@@ -47,7 +47,7 @@ jobs:
         
     - name: Download task definition
       run: |
-        aws ecs describe-task-definition --task-definition rails:1 \
+        aws ecs describe-task-definition --task-definition WithPort:2 \
         --query taskDefinition > task-definition.json
         
     - name: Fill in the new image ID in the Amazon ECS task definition
