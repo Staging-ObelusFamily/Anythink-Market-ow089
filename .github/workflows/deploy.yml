@@ -7,7 +7,7 @@ env:
   ECR_REPOSITORY: anythink-market
   ECS_SERVICE: rails
   ECS_CLUSTER: anythink-market-ow089
-  CONTAINER_NAME: application
+  CONTAINER_NAME: ReplaceMe
 
 jobs:
   
